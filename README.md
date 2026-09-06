@@ -55,7 +55,7 @@ cp .env.example .env
 #### Run ElasticSearch Container
 
 ```bash
-docker run --network=host -m 1GB -e "discovery.type=single-node" -e ELASTICSEARCH_USERNAME=elastic -e ELASTICSEARCH_PASSWORD=12345678 -e "xpack.security.enabled=false" -e "xpack.security.enrollment.enabled=false" public.ecr.aws/docker/library/elasticsearch:8.17.4
+docker run --network=host -m 1GB -e "discovery.type=single-node" -e ELASTICSEARCH_USERNAME=elastic -e ELASTICSEARCH_PASSWORD=12345678 -e "xpack.security.enabled=false" -e "xpack.security.enrollment.enabled=false" docker.mobinhost.com/library/elasticsearch:8.17.4
 ```
 
 > it will be published on port 9200 on localhost

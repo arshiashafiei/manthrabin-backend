@@ -1,4 +1,4 @@
-FROM public.ecr.aws/docker/library/python:3 AS builder
+FROM docker.mobinhost.com/library/python:3 AS builder
 LABEL maintainer="SMSPA Team <arshia2562@gmail.com>"
 
 RUN apt-get update \
@@ -23,7 +23,7 @@ RUN pip3 install --user --upgrade pip && \
 
 ###############################################################################
 
-FROM public.ecr.aws/docker/library/python:3 AS run-time
+FROM docker.mobinhost.com/library/python:3 AS run-time
 LABEL maintainer="SMSPA Team <arshia2562@gmail.com>"
 
 WORKDIR /app
