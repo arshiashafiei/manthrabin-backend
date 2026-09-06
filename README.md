@@ -6,7 +6,7 @@ Manthrabin is a Django-based backend service that provides document management a
 
 ## Prerequisites
 
-- Python 3.10+
+- Python 3.12 (used by the Docker image)
 - MySQL/MariaDB
 - Elasticsearch
 - OpenAI API key
