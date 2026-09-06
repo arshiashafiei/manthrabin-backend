@@ -52,7 +52,8 @@ COPY --chown=python:python . .
 
 RUN chmod +x /app/entrypoint.sh && \
     if [ "${DEBUG}" = "false" ]; then \
-        SECRET_KEY=dummyvalue python manage.py collectstatic --no-input; fi
+        DJANGO_SECRET_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(64))')" \
+        DJANGO_ALLOWED_HOSTS=localhost python manage.py collectstatic --no-input; fi
 
 EXPOSE 8000
 

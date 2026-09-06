@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 
 from pathlib import Path
 from dotenv import load_dotenv
+from django.core.exceptions import ImproperlyConfigured
 import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -37,12 +38,32 @@ if DEBUG:
     ALLOWED_HOSTS = ['*']
     SECRET_KEY = 'django-insecure-i)wkb3_rilc6e2q1fb@72o7%gt*q^wzo^jla!f8)k5r2li^*(t'
 else:
-    try:
-        ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS').split(',')
-        CSRF_TRUSTED_ORIGINS = os.environ.get('CSRF_TRUSTED_ORIGINS').split(',')
-    except AttributeError as e: # TODO: should be an 'if' where docker is building
-        ALLOWED_HOSTS = ['*'] #QUICK_FIX
-    SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', "dummyvalue")
+    SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', '').strip()
+    if (
+        len(SECRET_KEY) < 50
+        or len(set(SECRET_KEY)) < 5
+        or SECRET_KEY.startswith('django-insecure-')
+        or SECRET_KEY == 'replace_me_with_a_strong_secret'
+    ):
+        raise ImproperlyConfigured(
+            'DJANGO_SECRET_KEY must be a strong, non-placeholder secret '
+            'of at least 50 characters when DEBUG=false.'
+        )
+    ALLOWED_HOSTS = [
+        host.strip() for host in os.getenv('DJANGO_ALLOWED_HOSTS', '').split(',')
+        if host.strip()
+    ]
+    if not ALLOWED_HOSTS or '*' in ALLOWED_HOSTS:
+        raise ImproperlyConfigured(
+            'DJANGO_ALLOWED_HOSTS must contain explicit hostnames, without *, '
+            'when DEBUG=false.'
+        )
+
+# Same-origin requests do not require additional trusted origins.
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip() for origin in os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',')
+    if origin.strip()
+]
 
 # USE_X_FORWARDED_HOST = True
 # SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
