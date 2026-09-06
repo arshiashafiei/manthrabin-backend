@@ -109,11 +109,11 @@ The API will be available at `http://localhost:8000`
 To run the project using Docker:
 
 ```bash
-# Build and start services
-docker-compose up --build
+# Build and start the backend and its database, Redis, and Elasticsearch dependencies
+docker compose up --build backend
 
 # Run migrations
-docker-compose exec backend python manage.py migrate
+docker compose exec backend python manage.py migrate
 ```
 
 ## Testing (Under construction...)

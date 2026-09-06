@@ -119,13 +119,13 @@ services:
 
   frontend:
     container_name: frontend
-    image: ${FRONTEND_IMAGE_NAME:-manthrabin-frontend}:${FRONTEND_IMAGE_TAG:?error}
+    image: ${FRONTEND_IMAGE_NAME:-manthrabin-frontend}:${FRONTEND_IMAGE_TAG:-local}
     build:
       context: ../Front-End/.
       args:
         - REACT_APP_API_URL=https://manthrabin.ir
       tags:
-        - "${FRONTEND_IMAGE_NAME:-manthrabin-frontend}:${FRONTEND_IMAGE_TAG:?error}"
+      - "${FRONTEND_IMAGE_NAME:-manthrabin-frontend}:${FRONTEND_IMAGE_TAG:-local}"
     restart: always
     ports:
       - "127.0.0.1:3000:80"
