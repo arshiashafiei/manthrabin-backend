@@ -1,135 +1,124 @@
-# Manthrabin Developer Setup Guide
+# Manthrabin
 
-## Project Overview
+**A document-based AI chat assistant for organizational knowledge.**
 
-Manthrabin is a Django-based backend service that provides document management and conversation capabilities with AI integration. The project uses Django REST Framework for API endpoints and Elasticsearch for document search and storage.
+Manthrabin lets administrators manage a PDF knowledge base and users ask questions backed by retrieved document content. Built by a five-person team for the Software Engineering course at the **University of Isfahan**, this repository contains the Django backend; the React frontend is maintained separately.
 
-## Prerequisites
+![Chat interface and conversation history](docs/screenshots/chat.png)
 
-- Python 3.10+
-- MySQL/MariaDB
-- Elasticsearch
-- OpenAI API key
-- Docker and Docker Compose (optional)
+## Features and stack
 
-## Getting Started
+- PDF upload, download, deletion, and vector indexing for an administrator-managed knowledge base.
+- Document retrieval and model responses informed by conversation history and user interests.
+- JWT-authenticated WebSocket chat, saved conversations, automatic titles, sharing, and search.
+- User accounts, password reset, administrator controls, and Redis-based usage limits.
 
-### 1. Environment Setup
+**Stack:** Python 3.12 · Django REST Framework · Channels/Daphne · MariaDB · Elasticsearch · Redis · LangChain · OpenAI · Docker Compose.
 
-1. Clone the repository:
+PDFs are split into overlapping chunks and embedded into Elasticsearch. The RAG pipeline retrieves relevant passages for each question and passes them to the language model alongside conversation context. MariaDB stores application records; Redis tracks prompt usage.
+
+## Screenshots
+
+![Administrator document management](docs/screenshots/document-management.jpg)
+
+These original screenshots come from the final Persian course report and show the team application with its separate frontend.
+
+<details>
+<summary>More application screenshots</summary>
+
+| Accounts and preferences | Chat and administration |
+| --- | --- |
+| [Sign up](docs/screenshots/sign-up.jpg) | [Share by email](docs/screenshots/share-conversation-email.png) |
+| [Sign in](docs/screenshots/sign-in.jpg) | [Copy sharing link](docs/screenshots/share-conversation-link.png) |
+| [Select interests](docs/screenshots/interests.jpg) | [Manage users](docs/screenshots/user-management.jpg) |
+| [Request password reset](docs/screenshots/forgot-password.jpg) | [Disabled account](docs/screenshots/account-disabled.jpg) |
+| [Set a new password](docs/screenshots/reset-password.png) | |
+| [Edit profile](docs/screenshots/profile.png) | |
+| [Change password](docs/screenshots/change-password.png) | |
+
+</details>
+
+## TL;DR setup
+
+With Docker and Compose installed, run from the repository root:
 
 ```bash
-git clone <repository-url>
-cd manthrabin_backend
+cp -n .env.example .env
+python3 -c "import secrets; print(secrets.token_urlsafe(64))"
 ```
 
-2. Create and activate a virtual environment:
+In `.env`, set `DJANGO_SECRET_KEY` to the generated value, add `OPENAI_API_KEY`, and set `MYSQL_HOST=mysql`, `ES_URL=elasticsearch`, and `REDIS_HOST=redis`.
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+docker compose up --build -d --wait backend
+curl http://localhost:8000/health/
+docker compose exec backend python manage.py createsuperuser
 ```
 
-3. Install dependencies:
+Open [Swagger UI](http://localhost:8000/api/docs/). Before creating a conversation, add a model record using the command in [Run locally](#run-locally). The React frontend is separate.
 
-```bash
-pip install -r requirements.txt
-```
+## Run locally
 
-or if it's not the first time you run this project, make sure you installed pip-tools `pip install 'pip-tools==7.4.1'`, and then
+Requires Docker Engine, Docker Compose, and an OpenAI API key. Container images use the `docker.mobinhost.com` mirror.
 
-```bash
-pip-sync
-```
-
-4. Set up environment variables:
+**1. Configure:** from the repository root, copy the example if `.env` does not already exist:
 
 ```bash
 cp .env.example .env
 ```
 
-5. Edit `.env` with your configurations.
+Set `OPENAI_API_KEY` and replace `DJANGO_SECRET_KEY` with a random secret of at least 50 characters. For Compose, set `MYSQL_HOST=mysql`, `ES_URL=elasticsearch`, and `REDIS_HOST=redis`. Keep the example’s local allowed hosts and matching database names. `CSRF_TRUSTED_ORIGINS` can remain empty locally; additional origins must include their scheme.
 
-### 2. Database Setup
-
-#### Run ElasticSearch Container
+Generate a secret with local Python:
 
 ```bash
-docker run --network=host -m 1GB -e "discovery.type=single-node" -e ELASTICSEARCH_USERNAME=elastic -e ELASTICSEARCH_PASSWORD=12345678 -e "xpack.security.enabled=false" -e "xpack.security.enrollment.enabled=false" public.ecr.aws/docker/library/elasticsearch:8.17.4
+python3 -c "import secrets; print(secrets.token_urlsafe(64))"
 ```
 
-> it will be published on port 9200 on localhost
----
+`JINA_API_TOKEN` enables fetching links included in questions. Email features require `EMAIL_HOST_USER` and `EMAIL_HOST_PASSWORD`. Keep credentials in the Git-ignored `.env` file.
 
-1. Configure your database settings in `manthrabin_backend/config.py`
-2. Run migrations:
+**2. Start:** the following launches the backend and its three supporting services, without the frontend:
 
 ```bash
-python manage.py makemigrations
-python manage.py migrate
+docker compose up --build -d backend
+curl http://localhost:8000/health/
+docker compose exec backend python manage.py createsuperuser
 ```
 
-3. Create a superuser:
+Once startup completes, a healthy backend returns `{"status": "ok"}`. Open [Swagger UI](http://localhost:8000/api/docs/), [ReDoc](http://localhost:8000/api/redoc/), or [Django admin](http://localhost:8000/admin/).
+
+**3. Prepare a conversation:** a fresh database needs a model record. Replace `YOUR_MODEL_ID` with a chat-model identifier available to the configured API account:
 
 ```bash
-python manage.py createsuperuser
+docker compose exec backend python manage.py shell -c "from conversations.models import LLMModel; LLMModel.objects.get_or_create(name='YOUR_MODEL_ID')"
 ```
 
-### 3. Running the Development Server
+Use Swagger to sign in, authorize requests, upload a PDF as an administrator, and create a conversation. Chat connects to `ws://localhost:8000/chat/<conversation_public_id>/` using a JWT in the `Authorization: Bearer <token>` header. The graphical interface requires the separate frontend.
+
+## Development and status
+
+Code is organized into `users/`, `documents/`, `conversations/`, and `rag_utils/`; Django configuration lives in `manthrabin_backend/`.
 
 ```bash
-python manage.py runserver
+docker compose logs --tail 100 backend                    # Startup logs
+docker compose exec backend python manage.py test users conversations
+docker compose down                                     # Stop; retain data volumes
 ```
 
-The API will be available at `http://localhost:8000`
+Tests require configured services and permission to create a test database. The course report records 15 passing frontend tests across 5 suites; those are historical results. Local Docker startup and HTTP 200 from `/health/` have been verified, but end-to-end AI chat and the current test suite have not.
 
-## Project Structure
+This is a course-project demo: startup generates/applies migrations and rebuilds conversation search indexes, the server uses Django’s development command, and WebSocket answers are buffered before delivery. Reminder and task-generation tools were not completed.
 
-### Key Components
+## Team credits
 
-#### 1. Users App
+**Software Engineering Group 5** collaborated on the project with the following responsibilities:
 
-- Handles authentication and user management
+| Teammate | Role and contributions |
+| --- | --- |
+| [Sepehr Fatemi](https://github.com/Sepehr-spm) | **Project lead:** chat interface and history, frontend/backend integration, and user APIs |
+| [Parsa Khoshnama](https://github.com/ParsaKhoshnama) | **Frontend lead:** document-management and user-administration interfaces |
+| [Shima Maghzi](https://github.com/Shimaghzi) | **Backend lead:** WebSocket chat, Redis usage limits, conversation APIs, and user-management APIs |
+| [Arshia Shafiei](https://github.com/arshiashafiei) | **DevOps lead, backend and AI integration contributor:** substantial work on AI integration, backend/frontend Dockerization, deployment, document-upload APIs, and Elasticsearch conversation/prompt search |
+| [Mohammad Hossein Hashemi](https://github.com/MHTrXz) | **AI lead:** response pipelines combining document retrieval, chat history, user interests, and supplied web links |
 
-#### 2. Documents App
-
-- Manages document upload and processing
-
-#### 3. Conversations App
-
-- Handles chat functionality with AI
-
-## API Documentation
-
-- Swagger UI: `http://localhost:8000/api/docs/`
-- ReDoc: `http://localhost:8000/api/redoc/`
-
-## Docker Support (Under construction...)
-
-To run the project using Docker:
-
-```bash
-# Build and start services
-docker-compose up --build
-
-# Run migrations
-docker-compose exec backend python manage.py migrate
-```
-
-## Testing (Under construction...)
-
-Run tests using:
-
-```bash
-python manage.py test
-```
-
----
-
-## Common Issues and Solutions
-
-### Elasticsearch Connection Issues
-
-- Ensure Elasticsearch container is running
-- Check ES_URL and ES_PORT in .env
-- Verify ES_USER and ES_PASS credentials
+The team deployed the application at `manthrabin.ir` during the course project; current availability is not confirmed.

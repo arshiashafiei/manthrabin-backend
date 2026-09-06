@@ -182,7 +182,7 @@ class RequestResetPasswordView(APIView):
             token = token_generator.make_token(user)
             reset = PasswordReset(email=email, token=token)
             reset.save()
-            reset_url = f"127.0.0.1:3000/reset-password/{token}"
+            reset_url = f"manthrabin.ir/reset-password/{token}"
 
             send_mail(
                 subject="Password Reset Request",

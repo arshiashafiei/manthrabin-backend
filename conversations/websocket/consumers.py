@@ -6,10 +6,11 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from redis.exceptions import WatchError
 
 from manthrabin_backend import settings
-from manthrabin_backend.connections import  get_redis_client
+from manthrabin_backend.connections import get_redis_client
 
 from rag_utils.conversation_name import chat_name
 from conversations.models import Conversation, Prompt
+from documents.models import Document
 from rag_utils.response_pipeline import stream
 from users.models import UserInterest
 
@@ -29,14 +30,14 @@ class ChatConsumer(AsyncWebsocketConsumer):
         self.DURATION = settings.RATE_LIMIT_DURATION_SECONDS
 
     async def connect(self):
-        self.user = self.scope.get('user', None)
+        self.user = self.scope.get("user", None)
 
         if not self.user.is_authenticated:
             print("Oh No")
             await self.close(code=4001)
             return
 
-        conversation_public_id = self.scope['url_route']['kwargs']['conversation_public_id']
+        conversation_public_id = self.scope["url_route"]["kwargs"]["conversation_public_id"]
         self.conversation, self.model_name = await self.is_valid_conversation(self.user, conversation_public_id)
         self.prompts = await self.conversation_prompts()
         self.user_interests = await self.get_users_interests(self.user)
@@ -60,37 +61,55 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 return
 
             history = self.create_history(self.prompts[-10:])
-            full_response_for_db = ""
-            for response in stream(query=text_data, history=history, favorites=self.user_interests,
-                                   model_name=self.conversation.model.name):
-                if response["type"] == "chunk":
-                    full_response_for_db += response["response"]
-                    await self.send(response["response"])
-                if response["type"] == "source":
-                    await self.send(
-                        text_data=json.dumps({"type": "source", "conversation_id": str(self.conversation.public_id)}))
-                    for source in response["sourcePoints"]:
-                        await self.send(
-                            text_data = json.dumps({"public_id": source['ID'], "context": source['context']}))
-                    await self.send(
-                        text_data=json.dumps({"type": "link", "conversation_id": str(self.conversation.public_id)}))
-                    for link in response["links_data"]:
-                        await self.send(
-                            text_data=json.dumps({"link": link['Link']}))
 
-            # After sending all data chunks, send an end-of-stream signal
+            full_response = ""
+            source_docs = []
+
+            for response in stream(
+                    query=text_data,
+                    history=history,
+                    favorites=self.user_interests,
+                    model_name=self.conversation.model.name,
+            ):
+                print(response)
+                if response.get("type") == "chunk":
+                    full_response += response.get("response", "")
+                elif response.get("type") == "source":
+                    for source in response.get("sourcePoints", []):
+                        doc_id = source.get("ID")
+                        if doc_id:
+                            doc = await self.get_document(doc_id)
+                            if doc:
+                                if not doc in source_docs:
+                                    source_docs.append(doc)
+
+            if source_docs:
+                full_response += " >>>>>>>>>>>>>>> Sources:\n"
+                for doc in source_docs:
+                    full_response += f"{doc.title} | "
+
+            await self.send(text_data=full_response)
+
             await self.send(
-                text_data=json.dumps({"type": "stream_end", "conversation_id": str(self.conversation.public_id)}))
+                text_data=json.dumps({"type": "stream_end", "conversation_id": str(self.conversation.public_id)})
+            )
             print(f"Sent stream_end signal for conversation {self.conversation.public_id}")
 
-            prompt = await self.save_message(full_response_for_db, text_data)
+            prompt = await self.save_message(full_response, text_data)
             self.prompts.append(prompt)
 
             if self.first_time and prompt is not None:
                 self.first_time = False
                 history = self.create_history([prompt])
-                new_title = chat_name(history = history )
+                new_title = chat_name(history=history)
                 await self.update_conversation(new_title)
+
+    @database_sync_to_async
+    def get_document(self, public_id):
+        try:
+            return Document.objects.get(public_id=public_id)
+        except Document.DoesNotExist:
+            return None
 
     @database_sync_to_async
     def is_valid_conversation(self, user, conversation_public_id):
@@ -98,7 +117,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             conversation = Conversation.objects.get(public_id=conversation_public_id, user=user)
             return conversation, conversation.model.name
         except Conversation.DoesNotExist:
-            return None
+            return None, None
 
     @database_sync_to_async
     def conversation_prompts(self):
@@ -111,8 +130,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     def get_chunks(self, prompt):
         history = self.create_history(self.prompts[-10:])
-        return stream(query=prompt, history=history, favorites=self.user_interests,
-                      model_name=self.conversation.model_name)
+        return stream(
+            query=prompt,
+            history=history,
+            favorites=self.user_interests,
+            model_name=self.conversation.model_name,
+        )
 
     @database_sync_to_async
     def save_message(self, response, text):
@@ -143,7 +166,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             print("Redis client not initialized. Rate limiting bypassed.")
             return True
 
-        key = f"rate_limit:user:{ user_public_id}:prompts"
+        key = f"rate_limit:user:{user_public_id}:prompts"
 
         async with self.redis_client.pipeline() as pipe:
             try:
@@ -154,7 +177,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 if not key_exists:
                     pipe.set(key, 1)
                     pipe.expire(key, self.DURATION)
-                else :
+                else:
                     pipe.incr(key)
 
                 current_count = await pipe.get(key).execute()

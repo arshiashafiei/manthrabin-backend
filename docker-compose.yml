@@ -62,7 +62,7 @@ services:
       retries: 3
 
   redis:
-    image: public.ecr.aws/docker/library/redis:8.0.2-alpine
+    image: docker.mobinhost.com/library/redis:8.0.2-alpine
     container_name: redis
     ports:
       - "127.0.0.1:6379:6379"
@@ -73,7 +73,7 @@ services:
       retries: 3
     restart: "${DOCKER_RESTART_POLICY:-always}"
   elasticsearch:
-    image: public.ecr.aws/docker/library/elasticsearch:8.17.4
+    image: docker.mobinhost.com/library/elasticsearch:8.17.4
     container_name: elasticsearch
     ports:
       - "127.0.0.1:9200:9200"
@@ -87,7 +87,7 @@ services:
     environment:
       - discovery.type=single-node
       - ELASTICSEARCH_USERNAME=elastic
-      - ELASTICSEARCH_PASSWORD=12345678
+      - ELASTICSEARCH_PASSWORD=eEV(m[19]fw*iX,t
       - xpack.security.enabled=false
       - xpack.security.enrollment.enabled=false
     ulimits:
@@ -119,13 +119,13 @@ services:
 
   frontend:
     container_name: frontend
-    image: ${FRONTEND_IMAGE_NAME:-manthrabin-frontend}:${FRONTEND_IMAGE_TAG:?error}
+    image: ${FRONTEND_IMAGE_NAME:-manthrabin-frontend}:${FRONTEND_IMAGE_TAG:-local}
     build:
       context: ../Front-End/.
       args:
         - REACT_APP_API_URL=https://manthrabin.ir
       tags:
-        - "${FRONTEND_IMAGE_NAME:-manthrabin-frontend}:${FRONTEND_IMAGE_TAG:?error}"
+      - "${FRONTEND_IMAGE_NAME:-manthrabin-frontend}:${FRONTEND_IMAGE_TAG:-local}"
     restart: always
     ports:
       - "127.0.0.1:3000:80"
@@ -140,7 +140,7 @@ services:
 
   frontend-dev:
     container_name: frontend-dev
-    image: node:20-alpine
+    image: docker.mobinhost.com/library/node:20-alpine
     working_dir: /app
 
     volumes:

@@ -1,10 +1,10 @@
 import re
 import json
+import os
 import requests
 from typing import List, Dict, Any
 
 
-JINA_API_TOKEN = "jina_ee21df2e2d974094a5b729cdaa6224cbC8mfJB9q19JEv_ly3iOTkN863UiP"
 
 
 def fetch_links_content(text: str) -> List[Dict[str, Any]]:
@@ -23,9 +23,13 @@ def fetch_links_content(text: str) -> List[Dict[str, Any]]:
             - 'error': Error message if any.
     """
     urls = re.findall(r'https?://[^\s)>\]\'"]+', text)
-    headers = {
-        "Authorization": f"Bearer {JINA_API_TOKEN}"
-    }
+    token = os.getenv("JINA_API_TOKEN", "").strip()
+    if not token:
+        return [
+            {"Link": url, "Content": None, "error": "JINA_API_TOKEN is not configured."}
+            for url in urls
+        ]
+    headers = {"Authorization": f"Bearer {token}"}
 
     results = []
 

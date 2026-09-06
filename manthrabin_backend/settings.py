@@ -11,8 +11,8 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
 from pathlib import Path
-from . import config
 from dotenv import load_dotenv
+from django.core.exceptions import ImproperlyConfigured
 import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -38,12 +38,32 @@ if DEBUG:
     ALLOWED_HOSTS = ['*']
     SECRET_KEY = 'django-insecure-i)wkb3_rilc6e2q1fb@72o7%gt*q^wzo^jla!f8)k5r2li^*(t'
 else:
-    try:
-        ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS').split(',')
-        CSRF_TRUSTED_ORIGINS = os.environ.get('CSRF_TRUSTED_ORIGINS').split(',')
-    except AttributeError as e: # TODO: should be an 'if' where docker is building
-        ALLOWED_HOSTS = ['*'] #QUICK_FIX
-    SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', "dummyvalue")
+    SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', '').strip()
+    if (
+        len(SECRET_KEY) < 50
+        or len(set(SECRET_KEY)) < 5
+        or SECRET_KEY.startswith('django-insecure-')
+        or SECRET_KEY == 'replace_me_with_a_strong_secret'
+    ):
+        raise ImproperlyConfigured(
+            'DJANGO_SECRET_KEY must be a strong, non-placeholder secret '
+            'of at least 50 characters when DEBUG=false.'
+        )
+    ALLOWED_HOSTS = [
+        host.strip() for host in os.getenv('DJANGO_ALLOWED_HOSTS', '').split(',')
+        if host.strip()
+    ]
+    if not ALLOWED_HOSTS or '*' in ALLOWED_HOSTS:
+        raise ImproperlyConfigured(
+            'DJANGO_ALLOWED_HOSTS must contain explicit hostnames, without *, '
+            'when DEBUG=false.'
+        )
+
+# Same-origin requests do not require additional trusted origins.
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip() for origin in os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',')
+    if origin.strip()
+]
 
 # USE_X_FORWARDED_HOST = True
 # SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
@@ -81,11 +101,6 @@ INSTALLED_APPS = [
     'django_elasticsearch_dsl',
 ]
 
-HAYSTACK_CONNECTIONS = {
-    'default': {
-        'ENGINE': 'haystack.backends.simple_backend.SimpleEngine',
-    },
-}
 ASGI_APPLICATION = "manthrabin_backend.asgi.application"
 
 
@@ -94,8 +109,8 @@ EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', config.EMAIL_HOST_USER)
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', config.EMAIL_HOST_PASSWORD)
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
@@ -138,8 +153,17 @@ TEMPLATES = [
 
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
-
-DATABASES = config.DB_CONFIG
+os.environ.get('EMAIL_HOST_USER')
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': os.environ.get('MYSQL_DB'),
+        'USER': os.environ.get('MYSQL_USER'),
+        'PASSWORD': os.environ.get('MYSQL_PASSWORD'),
+        'HOST': os.environ.get('MYSQL_HOST', 'mysql'),
+        'PORT': os.environ.get('MYSQL_PORT', '3306'),
+    },
+}
 
 from datetime import timedelta
 SIMPLE_JWT = {

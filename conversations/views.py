@@ -88,7 +88,7 @@ class CreateConversationLinkView(APIView):
                 status=404
             )
         share_link =  self._create_or_update_shared_conversation( conversation)
-        link=f"127.0.0.1:3000/share/{share_link.public_id}"
+        link=f"manthrabin.ir/share/{share_link.public_id}"
 
         try:
             send_mail(

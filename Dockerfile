@@ -1,4 +1,4 @@
-FROM public.ecr.aws/docker/library/python:3 AS builder
+FROM docker.mobinhost.com/library/python:3.12 AS builder
 LABEL maintainer="SMSPA Team <arshia2562@gmail.com>"
 
 RUN apt-get update \
@@ -23,7 +23,7 @@ RUN pip3 install --user --upgrade pip && \
 
 ###############################################################################
 
-FROM public.ecr.aws/docker/library/python:3 AS run-time
+FROM docker.mobinhost.com/library/python:3.12 AS run-time
 LABEL maintainer="SMSPA Team <arshia2562@gmail.com>"
 
 WORKDIR /app
@@ -52,7 +52,8 @@ COPY --chown=python:python . .
 
 RUN chmod +x /app/entrypoint.sh && \
     if [ "${DEBUG}" = "false" ]; then \
-        SECRET_KEY=dummyvalue python manage.py collectstatic --no-input; fi
+        DJANGO_SECRET_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(64))')" \
+        DJANGO_ALLOWED_HOSTS=localhost python manage.py collectstatic --no-input; fi
 
 EXPOSE 8000
 
